@@ -61,7 +61,7 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
 
     let tasks = req_data
         .into_iter()
-        .filter(|ev| ev.event == "Processed")
+        .filter(|ev| ev.event == "processed")
         .map(|ev| {
             let username = username.clone();
             let mm_webhook_url = mm_webhook_url.clone();
