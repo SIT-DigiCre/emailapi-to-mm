@@ -1,4 +1,5 @@
 use base64::prelude::*;
+use futures::future::join_all;
 use serde::{Deserialize, Serialize};
 use worker::*;
 
@@ -58,10 +59,22 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
         .var("MATTERMOST_USERNAME")
         .map_or_else(|_| "メール送信お知らせくん".to_string(), |v| v.to_string());
 
-    for ev in req_data.iter().filter(|ev| ev.event == "Processed") {
-        let ev = MmEvent::new(username.clone(), &ev.email);
-        ev.send(&mm_webhook_url).await?;
-    }
+    let tasks = req_data
+        .into_iter()
+        .filter(|ev| ev.event == "Processed")
+        .map(|ev| {
+            let username = username.clone();
+            let mm_webhook_url = mm_webhook_url.clone();
+            async move {
+                let mm_ev = MmEvent::new(username, &ev.email);
+                let sender = mm_ev.send(&mm_webhook_url);
+
+                sender.await.unwrap_or_else(|e| {
+                    console_error!("Failed to send to MM for {}: {:?}", ev.email, e)
+                })
+            }
+        });
+    join_all(tasks).await;
 
     Response::ok("")
 }
