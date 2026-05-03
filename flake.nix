@@ -23,6 +23,7 @@
             "rust-src"
             "rust-analyzer"
           ];
+          targets = [ "wasm32-unknown-unknown" ];
         };
       in
       {
@@ -31,7 +32,11 @@
             rustToolchain
             rustfmt
 
+            openssl
+            pkg-config
+
             wrangler
+            worker-build
           ];
         };
       }
