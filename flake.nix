@@ -25,6 +25,24 @@
           ];
           targets = [ "wasm32-unknown-unknown" ];
         };
+
+        # nixpkgsにあるworker-buildが古い(0.7.3とか？)ので、自前でビルドします
+        worker-build = pkgs.rustPlatform.buildRustPackage rec {
+          pname = "worker-build";
+          version = "0.8.1";
+
+          src = pkgs.fetchCrate {
+            inherit pname version;
+            sha256 = "sha256-Df87FvodwFeI3UNdFSPqO2oDbnlEg0gWB8ZA1tk/NHo=";
+          };
+
+          cargoHash = "sha256-YGt+D7f5VUVnftc9TAeSjbh7a5YwXdFgm+XiaQwoiDA=";
+
+          nativeBuildInputs = [ pkgs.pkg-config ];
+          buildInputs = [ pkgs.openssl ];
+
+          doCheck = false;
+        };
       in
       {
         devShells.default = pkgs.mkShell {
