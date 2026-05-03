@@ -13,6 +13,28 @@ struct MmEvent {
     username: String,
     text: String,
 }
+impl MmEvent {
+    fn new(username: String, email: &str) -> Self {
+        Self {
+            username,
+            text: format!("`{}`へのメール配信処理が実行されました。", email),
+        }
+    }
+    async fn send(&self, url: &str) -> Result<()> {
+        let body = Some(serde_json::to_string(&self)?.into());
+        let mm_init = RequestInit {
+            method: Method::Post,
+            headers: Headers::from_iter([("Content-Type", "application/json")]),
+            body,
+            ..Default::default()
+        };
+        Fetch::Request(Request::new_with_init(url, &mm_init)?)
+            .send()
+            .await?;
+
+        Ok(())
+    }
+}
 
 #[event(fetch)]
 async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
@@ -27,9 +49,7 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
     // 認証 :done:
 
     let mut req = req;
-    let req_data: Vec<SendGridEvent> = if let Ok(res) = req.json().await {
-        res
-    } else {
+    let Ok(req_data) = req.json::<Vec<SendGridEvent>>().await else {
         return Response::error("", 400);
     };
 
@@ -39,23 +59,8 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
         .map_or_else(|_| "メール送信お知らせくん".to_string(), |v| v.to_string());
 
     for ev in req_data.iter().filter(|ev| ev.event == "Processed") {
-        let mm_ev = MmEvent {
-            text: format!("`{}`へのメール配信処理が実行されました。", ev.email),
-
-            username: username.clone(),
-        };
-        let body = Some(serde_json::to_string(&mm_ev)?.into());
-
-        let mm_init = RequestInit {
-            method: Method::Post,
-            headers: Headers::from_iter([("Content-Type", "application/json")]),
-            body,
-            ..Default::default()
-        };
-
-        Fetch::Request(Request::new_with_init(&mm_webhook_url, &mm_init)?)
-            .send()
-            .await?;
+        let ev = MmEvent::new(username.clone(), &ev.email);
+        ev.send(&mm_webhook_url).await?;
     }
 
     Response::ok("")
